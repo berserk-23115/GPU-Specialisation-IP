@@ -1,0 +1,61 @@
+# Build directories
+bin/
+obj/
+build/
+cmake-build*/
+
+# IDE directories
+.idea/
+.vscode/
+.vs/
+
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# CUDA specific
+*.i
+*.ii
+*.gpu
+*.ptx
+*.cubin
+*.fatbin
+*.module_cache
+
+# Image files (to avoid accidentally committing test images)
+data/input/*.jpg
+data/input/*.jpeg
+data/input/*.png
+data/input/*.bmp
+data/input/*.tif
+data/input/*.tiff
+data/output/*
+
+# OS specific
+.DS_Store
+Thumbs.db 
