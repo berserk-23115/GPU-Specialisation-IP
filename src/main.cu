@@ -15,13 +15,15 @@ void printUsage(const char* programName) {
 // Function to parse command line arguments
 bool parseArguments(int argc, char** argv, std::string& inputDir, std::string& outputDir, std::string& filterType) {
     for (int i = 1; i < argc; i += 2) {
+        if (i + 1 >= argc) return false;
+        
         std::string arg = argv[i];
         
-        if (arg == "--input" && i + 1 < argc) {
+        if (arg == "--input") {
             inputDir = argv[i + 1];
-        } else if (arg == "--output" && i + 1 < argc) {
+        } else if (arg == "--output") {
             outputDir = argv[i + 1];
-        } else if (arg == "--filter" && i + 1 < argc) {
+        } else if (arg == "--filter") {
             filterType = argv[i + 1];
         } else {
             return false;
@@ -30,6 +32,26 @@ bool parseArguments(int argc, char** argv, std::string& inputDir, std::string& o
     
     // Check if all required arguments are provided
     return !inputDir.empty() && !outputDir.empty() && !filterType.empty();
+}
+
+// Function to check CUDA device
+bool checkCudaDevice() {
+    int deviceCount = 0;
+    cudaError_t error = cudaGetDeviceCount(&deviceCount);
+    
+    if (error != cudaSuccess || deviceCount == 0) {
+        std::cerr << "No CUDA devices found! Error: " << cudaGetErrorString(error) << std::endl;
+        return false;
+    }
+    
+    // Print CUDA device information
+    cudaDeviceProp deviceProp;
+    cudaGetDeviceProperties(&deviceProp, 0);
+    std::cout << "Using CUDA device: " << deviceProp.name << std::endl;
+    std::cout << "Compute capability: " << deviceProp.major << "." << deviceProp.minor << std::endl;
+    std::cout << "Global memory: " << deviceProp.totalGlobalMem / (1024 * 1024) << " MB" << std::endl;
+    
+    return true;
 }
 
 int main(int argc, char** argv) {
@@ -42,30 +64,22 @@ int main(int argc, char** argv) {
     }
     
     // Print processing information
-    std::cout << "CUDA Image Processor" << std::endl;
+    std::cout << "=== CUDA Image Processor ===" << std::endl;
     std::cout << "Input directory: " << inputDir << std::endl;
     std::cout << "Output directory: " << outputDir << std::endl;
     std::cout << "Filter type: " << filterType << std::endl;
+    std::cout << "================================" << std::endl;
     
     // Check CUDA capabilities
-    int deviceCount = 0;
-    cudaGetDeviceCount(&deviceCount);
-    
-    if (deviceCount == 0) {
-        std::cerr << "No CUDA devices found! Exiting..." << std::endl;
+    if (!checkCudaDevice()) {
         return 1;
     }
-    
-    // Print CUDA device information
-    cudaDeviceProp deviceProp;
-    cudaGetDeviceProperties(&deviceProp, 0);
-    std::cout << "Using CUDA device: " << deviceProp.name << std::endl;
     
     // Load images from the input directory
     std::vector<int> widths, heights, channels;
     auto startTime = std::chrono::high_resolution_clock::now();
     
-    std::cout << "Loading images..." << std::endl;
+    std::cout << "\nLoading images from: " << inputDir << std::endl;
     std::vector<unsigned char*> inputImages = loadImagesFromDirectory(inputDir, widths, heights, channels);
     
     if (inputImages.empty()) {
@@ -75,39 +89,39 @@ int main(int argc, char** argv) {
     
     std::cout << "Loaded " << inputImages.size() << " images" << std::endl;
     
-    // Prepare output images
+    // Prepare output images and filenames
     std::vector<unsigned char*> outputImages(inputImages.size(), nullptr);
     std::vector<std::string> filenames;
     
-    // Extract filenames from input directory
-    // In a real implementation, this would extract proper filenames
+    // Generate output filenames and allocate memory
     for (size_t i = 0; i < inputImages.size(); ++i) {
-        filenames.push_back("processed_" + std::to_string(i) + ".png");
+        filenames.push_back("processed_" + filterType + "_" + std::to_string(i) + ".png");
         
         // Allocate memory for output images
-        outputImages[i] = new unsigned char[widths[i] * heights[i] * channels[i]];
-    }
-    
-    // Process images in batch
-    std::cout << "Processing images with filter: " << filterType << "..." << std::endl;
-    
-    // Convert std::vector to raw pointers for CUDA processing
-    unsigned char** d_inputImages = new unsigned char*[inputImages.size()];
-    unsigned char** d_outputImages = new unsigned char*[outputImages.size()];
-    
-    for (size_t i = 0; i < inputImages.size(); ++i) {
-        d_inputImages[i] = inputImages[i];
-        d_outputImages[i] = outputImages[i];
-    }
-    
-    // Batch process images (this would call CUDA kernels)
-    for (size_t i = 0; i < inputImages.size(); ++i) {
-        // Example of processing each image
-        // In a real implementation, this would be batched for efficiency
+        size_t imageSize = widths[i] * heights[i] * channels[i];
+        outputImages[i] = new unsigned char[imageSize];
         
-        // Create a 3x3 filter based on the filter type
-        float filter[9];
-        generateFilter(filter, 3, filterType.c_str());
+        if (outputImages[i] == nullptr) {
+            std::cerr << "Failed to allocate memory for output image " << i << std::endl;
+            // Clean up previously allocated images
+            for (size_t j = 0; j < i; ++j) {
+                delete[] outputImages[j];
+            }
+            freeImagesMemory(inputImages);
+            return 1;
+        }
+    }
+    
+    // Process images
+    std::cout << "\nProcessing images with filter: " << filterType << "..." << std::endl;
+    
+    // Create a 3x3 filter based on the filter type
+    float filter[9];
+    generateFilter(filter, 3, filterType.c_str());
+    
+    // Process each image
+    for (size_t i = 0; i < inputImages.size(); ++i) {
+        std::cout << "Processing image " << (i + 1) << "/" << inputImages.size() << "..." << std::endl;
         
         // Apply convolution
         applyConvolution(
@@ -121,22 +135,20 @@ int main(int argc, char** argv) {
         );
     }
     
-    // Clean up temporary arrays
-    delete[] d_inputImages;
-    delete[] d_outputImages;
-    
     // Save the processed images
-    std::cout << "Saving processed images..." << std::endl;
+    std::cout << "\nSaving processed images to: " << outputDir << std::endl;
     saveImagesToDirectory(outputDir, outputImages, widths, heights, channels, filenames);
     
     // Calculate and print processing time
     auto endTime = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
-    std::cout << "Processing completed in " << duration << " ms" << std::endl;
+    std::cout << "\n=== Processing completed in " << duration << " ms ===" << std::endl;
     
     // Free memory
     freeImagesMemory(inputImages);
-    freeImagesMemory(outputImages);
+    for (size_t i = 0; i < outputImages.size(); ++i) {
+        delete[] outputImages[i];
+    }
     
     return 0;
 } 

@@ -1,10 +1,13 @@
+#include <opencv2/opencv.hpp>
+#include <string>
+#include <vector>
+#include <iostream>
+#include <filesystem>
+#include <cstring>
+#include <algorithm>
 #include "image_io.h"
 
-// This file serves as a CUDA-compatible wrapper for image I/O operations
-// The actual implementation is in image_io_impl.cpp to avoid C++17/filesystem conflicts with nvcc
-
-// All function implementations are in image_io_impl.cpp
-// This allows us to avoid std::filesystem issues with CUDA compilation
+namespace fs = std::filesystem;
 
 // Load a single image from file
 unsigned char* loadImage(const std::string& filename, int* width, int* height, int* channels) {
@@ -69,6 +72,7 @@ std::vector<unsigned char*> loadImagesFromDirectory(
             
             // Get file extension
             std::string extension = entry.path().extension().string();
+            std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
             
             // Check if file is an image
             if (extension == ".jpg" || extension == ".jpeg" || extension == ".png" || 
@@ -84,6 +88,8 @@ std::vector<unsigned char*> loadImagesFromDirectory(
                     widths.push_back(width);
                     heights.push_back(height);
                     channels.push_back(nChannels);
+                    
+                    std::cout << "Loaded: " << entry.path().filename() << " (" << width << "x" << height << ", " << nChannels << " channels)" << std::endl;
                 }
             }
         }
@@ -116,6 +122,7 @@ void saveImagesToDirectory(
             
             // Save image
             saveImage(fullPath, images[i], widths[i], heights[i], channels[i]);
+            std::cout << "Saved: " << fullPath << std::endl;
         }
     } catch (const std::exception& e) {
         std::cerr << "Error saving images: " << e.what() << std::endl;

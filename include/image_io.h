@@ -1,9 +1,12 @@
 #ifndef IMAGE_IO_H
 #define IMAGE_IO_H
 
-#include <opencv2/opencv.hpp>
 #include <string>
 #include <vector>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Load a single image from file
 unsigned char* loadImage(const std::string& filename, int* width, int* height, int* channels);
@@ -32,5 +35,9 @@ void saveImagesToDirectory(
 // Free memory allocated for images
 void freeImageMemory(unsigned char* imageData);
 void freeImagesMemory(std::vector<unsigned char*>& images);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // IMAGE_IO_H 
